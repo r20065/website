@@ -159,3 +159,8 @@ article h2{
   }
 }
 /*article関連終わり*/
+.lastdate{
+  
+  color: white;
+  text-align: center;
+}
