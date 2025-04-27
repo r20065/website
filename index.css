@@ -3,14 +3,50 @@ body {
   margin: 0;
   padding: 0;
 }
-.header {
-  background-color: white;
-  padding: 0 .5em;
+/*header関連*/
+header {
+  background-color: #333;
+  color: white;
+  padding: 20px 0;
+  text-align: center;
 }
+
+.site-title {
+  font-size: 24px;
+  margin-bottom: 10px;
+}
+
+.navigation ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.navigation li a {
+  color: white;
+  text-decoration: none;
+  font-size: 16px;
+  padding: 5px 10px;
+  transition: background 0.3s;
+}
+
+.navigation li a:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 5px;
+}
+/*header関連終わり*/
+
+/*footer関連*/
 .footer {
   background-color: white;
   padding: 0 .5em;
 }
+/*footer関連終わり*/
+
 .main {
   background-color: #fff8d8;
   padding: 1em;
