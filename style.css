@@ -1,8 +1,4 @@
-body {
-  font-family: sans-serif;
-  margin: 0;
-  padding: 0;
-}
+
 /*header関連*/
 header {
   background-color: #333;
@@ -41,10 +37,13 @@ header {
 /*header関連終わり*/
 
 body{
-  background-image: url('hero.jpg');
+  background-image: url('img/hero.jpg');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  font-family: sans-serif;
+  margin: 0;
+  padding: 0;
 }
 
 /*hero関連*/
@@ -79,10 +78,22 @@ body{
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
   width: 100%;
   max-width: 320px;/* カードの最大幅を決める */
-  height: 100px;
+  height: 125px;
   text-align: center;
   flex: 1 1 calc(50% - 20px); /* 2個並べる設定 */
   box-sizing: border-box;
+}
+.card h3 {
+  margin-bottom: 0px;
+  margin-top: 5px;
+}
+.card p {
+  margin: 3px;
+}
+.card .date {
+  margin: 3px;
+  font-size: 10px;
+  color: #333;
 }
 @media (max-width: 640px) {
   .feature-card {
@@ -90,9 +101,7 @@ body{
   }
 }
 
-.feature-card h3 {
-  margin-bottom: 10px;
-}
+
 /*features関連終わり*/
 
 
