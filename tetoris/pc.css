@@ -1,0 +1,141 @@
+.center {
+  width: 380px;
+  margin: 0 auto;
+}
+/*ルール説明*/
+.ex {
+  position: relative;
+  font-size: 10px;
+  background-color: rgb(255, 255, 255);
+  top: 15px;
+  border: 3px dotted #000;
+}
+
+/*ゲーム画面*/
+.main {
+  background-color: black;
+  position: relative;
+  width: 95%;
+  height: 540px;
+  top: 30px;
+  border: double 10px #ffffff;
+}
+
+/*名前入力*/
+.start {
+  margin: 5px;
+  width: 95%;
+}
+
+.name {
+  margin: 0 auto;
+  font-size: 10px;
+  width: 40%;
+}
+
+.namebtn {
+  font-size: 10px;
+  background-color: #cbcbcb;
+  border: 3px inset #c0bfbf;
+}
+
+/*テトリスブロック*/
+.block {
+  background-color: rgb(151, 151, 151);
+  width: 20px;
+  height: 20px;
+  padding: 0px;
+  margin: 0px;
+  font-weight: bold;
+  border: solid 1px #000000;
+
+}
+
+.parent {
+  display: flex;
+}
+
+/*テトリス画面*/
+.disp {
+  margin: 10px;
+  height: 400px;
+  position: absolute;
+}
+
+/*次のブロック表示してるとこ*/
+.next {
+  position: absolute;
+  top: 40px;
+  left: 240px;
+
+}
+
+/*スコア表示*/
+.score {
+  position: absolute;
+  top: 120px;
+  left: 240px;
+  font-size: 20px;
+  color: #ffffff;
+}
+
+/*メッセージ*/
+.msg {
+  position: absolute;
+  top: 160px;
+  width: 30%;
+  left: 240px;
+  font-size: 10px;
+  color: #ffffff;
+}
+
+.moji {
+  color: black;
+  font-size: 2%;
+
+}
+
+.reset_btn {
+  position: absolute;
+  left: 237px;
+  top: 350px;
+}
+
+.fall_btn {
+  position: absolute;
+  left: 237px;
+  top: 410px;
+}
+
+/*ボタンがあるとこ*/
+.btnbox {
+
+  position: absolute;
+  left: 5px;
+  top: 480px;
+
+  width: 100%;
+  height: 50px;
+}
+
+.btn {
+  position: relative;
+  width: 110px;
+  height: 40px;
+  margin: 5px 1px;
+  background-color: #cbcbcb;
+  border: 6px inset #c0bfbf;
+  padding: 5px;
+}
+
+.btnn {
+  margin: 4px auto;
+}
+
+.sabhtml {
+  position: absolute;
+  top: 570px;
+  max-height: 600px;
+  width: 100%;
+  background-color: rgb(150, 150, 150);
+}

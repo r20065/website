@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>tetoris</title>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="../style.css" type="text/css">
+    <link rel="stylesheet" href="mobile.css" type="text/css" media="screen and (max-width: 400px)">
+    <link rel="stylesheet" href="pc.css" type="text/css" media="screen and (min-width: 401px)">
+  </head>
+  
+  <body>
+    <header id="header">
+      <h1 class="site-title">r20065 site</h1>
+      <nav class="navigation">
+        <ul>
+          <li><a href="../index.html">ホーム</a></li>
+          <li><a href="create.html">作品</a></li>
+          <li><a href="intro.html">自己紹介</a></li>
+        </ul>
+      </nav>
+    </header>
+    <div class="center">
+      <div class="ex">
+        <ul class="ul">        
+          <li>1列消すと+100,連続で消すと+100のボーナスが入ります</li>
+          <li>消す回数ごとに落下速度が上昇します</li>
+          <li>不適切な名前は処理されない場合があります。</li>
+          <li>改竄したデータを送信することもできるはず。頑張って解析してください。</li>
+        </ul>
+      </div>
+
+      <div class="main">
+
+        <div class="start">
+          <input type="text" id="name" maxlength="16" class="name" />
+          <button type="button" onclick="clk_start()" class="namebtn">
+            名前を登録してスタート
+          </button>
+        </div>
+        <div class="disp">
+          <div class="parent">
+            <p1 id="0.0" class="block"></p1>
+            <p1 id="1.0" class="block" style="color: red">d</p1>
+            <p1 id="2.0" class="block" style="color: red">e</p1>
+            <p1 id="3.0" class="block" style="color: red">a</p1>
+            <p1 id="4.0" class="block" style="color: red">d</p1>
+            <p1 id="5.0" class="block" style="color: red">l</p1>
+            <p1 id="6.0" class="block" style="color: red">i</p1>
+            <p1 id="7.0" class="block" style="color: red">n</p1>
+            <p1 id="8.0" class="block" style="color: red">e</p1>
+            <p1 id="9.0" class="block"></p1>
+          </div>
+
+          <div class="parent">
+            <p1 id="0.1" class="block"></p1>
+            <p1 id="1.1" class="block"></p1>
+            <p1 id="2.1" class="block"></p1>
+            <p1 id="3.1" class="block"></p1>
+            <p1 id="4.1" class="block"></p1>
+            <p1 id="5.1" class="block"></p1>
+            <p1 id="6.1" class="block"></p1>
+            <p1 id="7.1" class="block"></p1>
+            <p1 id="8.1" class="block"></p1>
+            <p1 id="9.1" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="0.2" class="block"></p1>
+            <p1 id="1.2" class="block"></p1>
+            <p1 id="2.2" class="block"></p1>
+            <p1 id="3.2" class="block"></p1>
+            <p1 id="4.2" class="block"></p1>
+            <p1 id="5.2" class="block"></p1>
+            <p1 id="6.2" class="block"></p1>
+            <p1 id="7.2" class="block"></p1>
+            <p1 id="8.2" class="block"></p1>
+            <p1 id="9.2" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="0.3" class="block"></p1>
+            <p1 id="1.3" class="block"></p1>
+            <p1 id="2.3" class="block"></p1>
+            <p1 id="3.3" class="block"></p1>
+            <p1 id="4.3" class="block"></p1>
+            <p1 id="5.3" class="block"></p1>
+            <p1 id="6.3" class="block"></p1>
+            <p1 id="7.3" class="block"></p1>
+            <p1 id="8.3" class="block"></p1>
+            <p1 id="9.3" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="0.4" class="block"></p1>
+            <p1 id="1.4" class="block"></p1>
+            <p1 id="2.4" class="block"></p1>
+            <p1 id="3.4" class="block"></p1>
+            <p1 id="4.4" class="block"></p1>
+            <p1 id="5.4" class="block"></p1>
+            <p1 id="6.4" class="block"></p1>
+            <p1 id="7.4" class="block"></p1>
+            <p1 id="8.4" class="block"></p1>
+            <p1 id="9.4" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="0.5" class="block"></p1>
+            <p1 id="1.5" class="block"></p1>
+            <p1 id="2.5" class="block"></p1>
+            <p1 id="3.5" class="block"></p1>
+            <p1 id="4.5" class="block"></p1>
+            <p1 id="5.5" class="block"></p1>
+            <p1 id="6.5" class="block"></p1>
+            <p1 id="7.5" class="block"></p1>
+            <p1 id="8.5" class="block"></p1>
+            <p1 id="9.5" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="0.6" class="block"></p1>
+            <p1 id="1.6" class="block"></p1>
+            <p1 id="2.6" class="block"></p1>
+            <p1 id="3.6" class="block"></p1>
+            <p1 id="4.6" class="block"></p1>
+            <p1 id="5.6" class="block"></p1>
+            <p1 id="6.6" class="block"></p1>
+            <p1 id="7.6" class="block"></p1>
+            <p1 id="8.6" class="block"></p1>
+            <p1 id="9.6" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="0.7" class="block"></p1>
+            <p1 id="1.7" class="block"></p1>
+            <p1 id="2.7" class="block"></p1>
+            <p1 id="3.7" class="block"></p1>
+            <p1 id="4.7" class="block"></p1>
+            <p1 id="5.7" class="block"></p1>
+            <p1 id="6.7" class="block"></p1>
+            <p1 id="7.7" class="block"></p1>
+            <p1 id="8.7" class="block"></p1>
+            <p1 id="9.7" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="0.8" class="block"></p1>
+            <p1 id="1.8" class="block"></p1>
+            <p1 id="2.8" class="block"></p1>
+            <p1 id="3.8" class="block"></p1>
+            <p1 id="4.8" class="block"></p1>
+            <p1 id="5.8" class="block"></p1>
+            <p1 id="6.8" class="block"></p1>
+            <p1 id="7.8" class="block"></p1>
+            <p1 id="8.8" class="block"></p1>
+            <p1 id="9.8" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="0.9" class="block"></p1>
+            <p1 id="1.9" class="block"></p1>
+            <p1 id="2.9" class="block"></p1>
+            <p1 id="3.9" class="block"></p1>
+            <p1 id="4.9" class="block"></p1>
+            <p1 id="5.9" class="block"></p1>
+            <p1 id="6.9" class="block"></p1>
+            <p1 id="7.9" class="block"></p1>
+            <p1 id="8.9" class="block"></p1>
+            <p1 id="9.9" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="0.10" class="block"></p1>
+            <p1 id="1.10" class="block"></p1>
+            <p1 id="2.10" class="block"></p1>
+            <p1 id="3.10" class="block"></p1>
+            <p1 id="4.10" class="block"></p1>
+            <p1 id="5.10" class="block"></p1>
+            <p1 id="6.10" class="block"></p1>
+            <p1 id="7.10" class="block"></p1>
+            <p1 id="8.10" class="block"></p1>
+            <p1 id="9.10" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="0.11" class="block"></p1>
+            <p1 id="1.11" class="block"></p1>
+            <p1 id="2.11" class="block"></p1>
+            <p1 id="3.11" class="block"></p1>
+            <p1 id="4.11" class="block"></p1>
+            <p1 id="5.11" class="block"></p1>
+            <p1 id="6.11" class="block"></p1>
+            <p1 id="7.11" class="block"></p1>
+            <p1 id="8.11" class="block"></p1>
+            <p1 id="9.11" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="0.12" class="block"></p1>
+            <p1 id="1.12" class="block"></p1>
+            <p1 id="2.12" class="block"></p1>
+            <p1 id="3.12" class="block"></p1>
+            <p1 id="4.12" class="block"></p1>
+            <p1 id="5.12" class="block"></p1>
+            <p1 id="6.12" class="block"></p1>
+            <p1 id="7.12" class="block"></p1>
+            <p1 id="8.12" class="block"></p1>
+            <p1 id="9.12" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="0.13" class="block"></p1>
+            <p1 id="1.13" class="block"></p1>
+            <p1 id="2.13" class="block"></p1>
+            <p1 id="3.13" class="block"></p1>
+            <p1 id="4.13" class="block"></p1>
+            <p1 id="5.13" class="block"></p1>
+            <p1 id="6.13" class="block"></p1>
+            <p1 id="7.13" class="block"></p1>
+            <p1 id="8.13" class="block"></p1>
+            <p1 id="9.13" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="0.14" class="block"></p1>
+            <p1 id="1.14" class="block"></p1>
+            <p1 id="2.14" class="block"></p1>
+            <p1 id="3.14" class="block"></p1>
+            <p1 id="4.14" class="block"></p1>
+            <p1 id="5.14" class="block"></p1>
+            <p1 id="6.14" class="block"></p1>
+            <p1 id="7.14" class="block"></p1>
+            <p1 id="8.14" class="block"></p1>
+            <p1 id="9.14" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="0.15" class="block"></p1>
+            <p1 id="1.15" class="block"></p1>
+            <p1 id="2.15" class="block"></p1>
+            <p1 id="3.15" class="block"></p1>
+            <p1 id="4.15" class="block"></p1>
+            <p1 id="5.15" class="block"></p1>
+            <p1 id="6.15" class="block"></p1>
+            <p1 id="7.15" class="block"></p1>
+            <p1 id="8.15" class="block"></p1>
+            <p1 id="9.15" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="0.16" class="block"></p1>
+            <p1 id="1.16" class="block"></p1>
+            <p1 id="2.16" class="block"></p1>
+            <p1 id="3.16" class="block"></p1>
+            <p1 id="4.16" class="block"></p1>
+            <p1 id="5.16" class="block"></p1>
+            <p1 id="6.16" class="block"></p1>
+            <p1 id="7.16" class="block"></p1>
+            <p1 id="8.16" class="block"></p1>
+            <p1 id="9.16" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="0.17" class="block"></p1>
+            <p1 id="1.17" class="block"></p1>
+            <p1 id="2.17" class="block"></p1>
+            <p1 id="3.17" class="block"></p1>
+            <p1 id="4.17" class="block"></p1>
+            <p1 id="5.17" class="block"></p1>
+            <p1 id="6.17" class="block"></p1>
+            <p1 id="7.17" class="block"></p1>
+            <p1 id="8.17" class="block"></p1>
+            <p1 id="9.17" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="0.18" class="block"></p1>
+            <p1 id="1.18" class="block"></p1>
+            <p1 id="2.18" class="block"></p1>
+            <p1 id="3.18" class="block"></p1>
+            <p1 id="4.18" class="block"></p1>
+            <p1 id="5.18" class="block"></p1>
+            <p1 id="6.18" class="block"></p1>
+            <p1 id="7.18" class="block"></p1>
+            <p1 id="8.18" class="block"></p1>
+            <p1 id="9.18" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="0.19" class="block"></p1>
+            <p1 id="1.19" class="block"></p1>
+            <p1 id="2.19" class="block"></p1>
+            <p1 id="3.19" class="block"></p1>
+            <p1 id="4.19" class="block"></p1>
+            <p1 id="5.19" class="block"></p1>
+            <p1 id="6.19" class="block"></p1>
+            <p1 id="7.19" class="block"></p1>
+            <p1 id="8.19" class="block"></p1>
+            <p1 id="9.19" class="block"></p1>
+          </div>
+        </div>
+
+        <div class="next">
+          <div class="parent">
+            <p1 id="n0.0" class="block"></p1>
+            <p1 id="n1.0" class="block"></p1>
+            <p1 id="n2.0" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="n0.1" class="block"></p1>
+            <p1 id="n1.1" class="block"></p1>
+            <p1 id="n2.1" class="block"></p1>
+          </div>
+          <div class="parent">
+            <p1 id="n0.2" class="block"></p1>
+            <p1 id="n1.2" class="block"></p1>
+            <p1 id="n2.2" class="block"></p1>
+          </div>
+          
+        </div>
+        <div id="scoredisp" class="score">score:</div>
+        <div id="msg" class="msg"></div> 
+        <p class="reset_btn">
+          <input
+            id="btn_left"
+            type="button"
+            value="リセット"
+            onclick="clk_reset()"
+            class="btn"
+          />
+        </p>
+        <p class="fall_btn">
+        <input
+            id="btn_left"
+            type="button"
+            value="落下:S"
+            onclick="clk_fall()"
+            class="btn"
+        /></p>
+        <div class="btnbox">
+          
+          <p1 class="btnn">
+          <input
+              id="btn_left"
+              type="button"
+              value="左:A"
+              onclick="clk_left()"
+              class="btn"
+          /></p1>
+          <p1 class="btnn">
+          <input
+              id="btn_left"
+              type="button"
+              value="回転:W"
+              onclick="clk_rote()"
+              class="btn"
+          /></p1>
+          <p1 class="btnn">
+          <input
+              id="btn_left"
+              type="button"
+              value="右:D"
+              onclick="clk_right()"
+              class="btn"
+          /></p1>
+
+          
+        </div>
+      </div>
+    </div>
+    <footer id="footer">
+      <p>&copy;2025 大阪公立大学工業高等専門 4年 知能情報コース 13番</p>
+    </footer>
+    <script src="game.js"></script>
+    
+  </body>
+</html>

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>tetorisハイスコア</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    table {
+        border-collapse: collapse; /* 二重線のためにborder-collapseを指定 */
+        width: 100%;
+    }
+    th, td {
+      padding: 8px;
+      text-align: center;
+      border: 3px double black; /* 二重線の設定 */
+      background-color: rgb(255, 255, 255);
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    /* テーブル全体に二重線を適用 */
+    table {
+      border: 4px double black; /* 表全体の二重線 */
+    }
+    body{
+      background-color: rgb(255, 255, 255);
+    }
+  </style>
+</head>
+
+<body>
+  <p>ハイスコア（反映には時間がかかります）</p>
+  <p id="acc">アクセス数：</p>
+  <div id="result"></div>
+
+  <script type="text/javascript">
+    // Google Apps ScriptのdoGet関数にリクエストを送信し、データを取得
+    async function fetchHighScores() {
+      try {
+        const response = await fetch("https://script.google.com/macros/s/AKfycbzjgyYMHDF2Usf3b2pDBWGG9LghQiflyjCP5qX_E-6nfrlk9UhdYmDp_EYp3B3C3mN2/exec");
+        const data = await response.json();
+
+        // 表の作成
+        const table = document.createElement("table");
+        const tableHeader = `<tr>
+            <th>名前</th>
+            <th>スコア</th>
+            <th>日付</th>
+          </tr>`;
+        table.innerHTML = tableHeader;
+
+        // 各行を追加
+        data.slice(1).forEach(row => {  // 1行目はヘッダーなので除外
+          const tableRow = document.createElement("tr");
+          row.slice(0,3).forEach(cell => {
+            const tableCell = document.createElement("td");
+            tableCell.textContent = cell;
+            tableRow.appendChild(tableCell);
+          });
+          table.appendChild(tableRow);
+        });
+        console.log(data)
+        // 結果を表示
+        document.getElementById("result").appendChild(table);
+        var acc = document.getElementById("acc");
+        acc.innerHTML = (`これまでのアクセス数：${data[0][4]}`);
+      } catch (error) {
+        console.error("データの取得に失敗しました:", error);
+      }
+    }
+
+    // ページ読み込み時にハイスコアを取得
+    fetchHighScores();
+  </script>
+</body>
+
+</html>
