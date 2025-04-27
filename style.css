@@ -113,6 +113,7 @@ footer {
   text-align: center;
   padding: 20px;
   font-size: 0.9rem;
+  margin-top: 20px;
 }
 /*footer関連終わり*/
 
@@ -126,3 +127,35 @@ footer {
     font-size: 0.9rem;
   }
 }
+/*article関連*/
+article{
+  min-height: 80vh;
+  width: 800px;
+  background-color: rgba(255, 255, 255, 0.7);
+  margin: 0 auto;
+  border-radius: 15px;
+  padding: 20px;
+  margin-top: 20px;
+}
+article p{
+  margin: 5px;
+}
+article h1{
+  font-size: 1.5rem;
+  position: relative;
+  padding: 0.3em 0.5em;
+  background: -webkit-linear-gradient(to top, rgb(137, 184, 255), #c5ceff);
+  background: linear-gradient(to top, rgb(137, 184, 255), #c5ceff);
+  color: #495193;
+}
+article h2{
+  font-size: 1.2rem;
+  border-bottom: solid 3px black;
+}
+@media (max-width: 900px) {
+  article{
+    width: 100vw;
+    min-height: 80vh;
+  }
+}
+/*article関連終わり*/
