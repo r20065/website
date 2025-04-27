@@ -96,7 +96,7 @@ body{
   color: #333;
 }
 @media (max-width: 640px) {
-  .feature-card {
+  .card {
     flex: 1 1 100%;/* 画面が狭いときは1列 */
   }
 }
