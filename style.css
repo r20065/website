@@ -83,7 +83,7 @@ body{
   flex: 1 1 calc(50% - 20px); /* 2個並べる設定 */
   box-sizing: border-box;
 }
-.card h3 {
+.card a {
   margin-bottom: 0px;
   margin-top: 5px;
 }
