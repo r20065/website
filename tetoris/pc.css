@@ -149,7 +149,9 @@ html {
 .highscore{
   margin-top: 50px;
 }
-
+.highscore a{
+  color: white;
+}
 .highscore table {
   border-collapse: collapse;
   /* 二重線のためにborder-collapseを指定 */
