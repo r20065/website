@@ -488,7 +488,7 @@ function SendData() {
     score: score,
     date: date
   };
-  const endPoint = "https://www.gesipepa-cycle.com/game/tetoris/score.php";
+  const endPoint = "https://www.gesipepa-cycle.com/r20065/score.php";
   fetch(endPoint, {
     method: "POST",
 

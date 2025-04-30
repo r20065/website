@@ -8,10 +8,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="mobile.css" type="text/css" media="screen and (max-width: 400px)">
     <link rel="stylesheet" href="pc.css" type="text/css" media="screen and (min-width: 401px)">
+    <link rel="stylesheet" href="../style.css" type="text/css">
 </head>
 
 <body>
-
+    <header id="header">
+        <h1 class="site-title">r20065 site</h1>
+        <nav class="navigation">
+            <ul>
+                <li><a href="index.html">ホーム</a></li>
+                <li><a href="subhtml/create.html">作品</a></li>
+                <li><a href="subhtml/intro.html">自己紹介</a></li>
+            </ul>
+        </nav>
+    </header>
     <div class="center">
         <div class="ex">
             <ul class="ul">
@@ -314,11 +324,82 @@
                 </p1>
 
             </div>
-            <iframe id="highscore" src="https://www.gesipepa-cycle.com/game/tetoris/highscore.html"
-                class="sabhtml"></iframe>
+            
         </div>
+        <div class="highscore">
+            <a>これまでのハイスコア（反映には時間がかります）</a>
+        <div id="result" border="1"></div>
+        </div>
+        
     </div>
+    <footer id="footer">
+        <p>&copy;2025 大阪公立大学工業高等専門 4年 知能情報コース 13番</p>
+    </footer>
     <script src="game.js"></script>
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+    <script type="text/javascript">
+        let urldata = "https://www.gesipepa-cycle.com/r20065/get_highscore.php";
+        let request = createXMLHttpRequest();
+        request.open("GET", urldata, true);
+        request.send("");
+
+        request.onreadystatechange = function () {
+            if (request.readyState == 4 && request.status == 200) {
+                //受信完了時の処理
+                var result = document.getElementById("result");
+                var text = document.createTextNode(decodeURI(request.responseText));
+                let str = text.textContent;
+                console.log(result, "result")
+                console.log(text, "text")
+                console.log(str, "str")
+                const lines = str.split("\n");
+
+                $(result).append("<table border=\"1\" id=\"table\">\n</table>");
+                var table = document.getElementById("table");
+
+                let len = lines.length;
+                let num = 0;
+                for (let i = 0; i < len; i++) {
+                    if (lines[i] == "")
+                        break;
+
+                    let trid = "tr-id" + i.toString();
+                    $(table).append("<tr id = " + trid + "></tr>\n");
+
+                    const words = lines[i].split(",");
+                    let len2 = words.length;
+                    var tr = document.getElementById(trid);
+                    $(tr).append("<td>" + (i + 1).toString() + " 位</td>");
+                    for (let j = 0; j < len2; j++) {
+                        $(tr).append("<td>" + words[j] + "</td>");
+                    }
+
+                    $(table).append("</tr>");
+                }
+                $(result).append("");
+            }
+        }
+
+        function createXMLHttpRequest() {
+            if (window.XMLHttpRequest) {
+                return new XMLHttpRequest();
+            } else if (window.ActiveXObject) {
+                try {
+                    return new ActiveXObject("Msxml2.XMLHTTP");
+                }
+                catch (e) {
+                    try {
+                        return new ActiveXObject("Microsoft.XMLHTTP");
+                    }
+                    catch (e2) {
+                        return null;
+                    }
+                }
+            } else {
+                return null;
+            }
+        }
+    </script>
 </body>
 
 </html>
