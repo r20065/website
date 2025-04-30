@@ -347,6 +347,7 @@
             if (request.readyState == 4 && request.status == 200) {
                 //受信完了時の処理
                 var result = document.getElementById("result");
+                result.innerHTML="";
                 var text = document.createTextNode(decodeURI(request.responseText));
                 let str = text.textContent;
                 console.log(result, "result")
