@@ -442,7 +442,7 @@ function gamereset() {
   clearInterval(loop);
   SendData();
   if (!alert("今回のスコアは[" + score + "]でした。")) {
-    document.getElementById("highscore").contentWindow.location.reload();
+    null;
   }
   start = 0;
   x = 4;
