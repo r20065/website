@@ -483,22 +483,34 @@ function SendData() {
   let name = textbox1.value;
   name = isValidName(name);
   var date = getdate()
-  var sendtxt = `${name},${score},${date}`;
   const data = {
-    'data': sendtxt
+    name: name,
+    score: score,
+    date: date
   };
-  //gasにアクセス開始
-  const endPoint = "";
+  const endPoint = "https://www.gesipepa-cycle.com/game/tetoris/score.php";
   fetch(endPoint, {
     method: "POST",
+
     headers: {
       "Content-Type": 'application/json'
     },
     body: JSON.stringify(data)
   })
-    .then(response => console.log("成功"))
-    .catch(error => console.error("エラー:", error));
-
+    .then(response => {
+    const contentType = response.headers.get("Content-Type");
+    if (contentType && contentType.includes("application/json")) {
+      return response.json(); // JSONとして処理
+    } else {
+      return response.text(); // テキストとして処理
+    }
+  })
+  .then(data => {
+    console.log("サーバーレスポンス:", data);
+  })
+  .catch(error => {
+    console.error("エラー:", error);
+  });
 }
 function getdate() {
   const date = new Date();
@@ -509,6 +521,6 @@ function getdate() {
   const minutes = String(date.getMinutes()).padStart(2, '0'); // 分
 
   // フォーマットを組み立て
-  const formattedDate = `'${year}-${month}-${day} ${hours}:${minutes}`;
+  const formattedDate = `${year}-${month}-${day} ${hours}:${minutes}`;
   return formattedDate;
 }
