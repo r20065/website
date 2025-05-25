@@ -45,7 +45,7 @@ document.getElementById("submitButton").addEventListener("click", function () {
             };
 
             // PHPサーバーにリクエストを送信
-            fetch("data.php", {
+            fetch("https://gesipepa-cycle.com/r20065/duema.php", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
