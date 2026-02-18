@@ -108,8 +108,43 @@ CREATE INDEX idx_users_email ON users(email);
 ```
 再度実行計画を確認
 ```spl
-
+EXPLAIN ANALYZE
+SELECT * FROM users WHERE email = 'user_500000@example.com';
 ```
+確認ポイント
+- Index Scan または Index Only Scan になっているか？
+- 実行時間はどう変化したか？
+- 実行計画の cost はどう変わったか？
+
+### 2.3 1.4 Seq Scan vs Index Scan の比較
+| 項目     | Seq Scan | Index Scan |
+| ------ | -------- | ---------- |
+| 探索コスト  | O(N)     | O(log N)   |
+| 小規模データ | 有利な場合あり  | やや不利       |
+| 大規模データ | 不利       | 有利         |
+| メモリ使用  | 少        | やや多        |
+
+なぜ小規模データでは Seq Scan が選ばれるのか？
+PostgreSQLはコストベース最適化を行います。
+
+少量データでは：
+- インデックスを辿るコスト
+- テーブルへ戻るランダムアクセス
+の方が高くなる場合があります。
+
+### 定着確認
+問題1
+なぜインデックスを作成すると INSERT や UPDATE が遅くなるのか説明せよ。
+
+解答例
+
+インデックスはデータのコピー（キー＋ポインタ）を別構造として保持するため、
+INSERT → インデックスにも追加が必要
+UPDATE → キー変更時に再構築
+DELETE → インデックスから削除
+の処理が発生するため、書き込みコストが増加する。
+
+
 ## 4. インデックスの仕組み（B-tree）
 
 ### なぜ Seq Scan は遅い？
