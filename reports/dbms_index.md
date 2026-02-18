@@ -1,5 +1,4 @@
 # テーマ：インデックス設計 (INDEX, B-tree, 探索コスト)
-
 ---
 
 ## 1. はじめに
@@ -145,126 +144,225 @@ DELETE → インデックスから削除
 の処理が発生するため、書き込みコストが増加する。
 
 
-## 4. インデックスの仕組み（B-tree）
+## 3. インデックスの仕組み（B-tree）
+### 3.1 B-treeとはなにか
+データベースで最も一般的に使われるインデックス構造が B-tree (B木) です。正確には、PostgreSQL を含む多くのDBMSでは、改良版である B+tree (B+木) が採用されています。
+B-tree（Balanced Tree）は、
+- 多分木（多分岐木）
+- 常に平衡
+- ノードに複数キー保持
+- ディスクI/O最適化
+を目的としたデータ構造です。
+`なぜ二分探索木ではダメなのか？`
+仮に100万件のデータで：
+- 二分木 → 高さ約20
+- B-tree（分岐数200）→ 高さ約3
+- ディスクI/Oが20回 vs 3回。
+ディスクアクセスが支配的コストであるDBでは圧倒的差になります。
+`PostgreSQLのB-treeは実質的に B+Tree です。`
+B-tree の3つの特徴
+`バランスが保たれている (Balanced):`
+すべての「リーフノード（末端）」は、ルートからの深さが同じになります。これにより、データの偏りがあっても検索性能が安定します（最悪計算量が $O(\log N)$）。
+`ソートされた状態を維持:`
+データは常にキー順に並んでいます。これにより「範囲検索（BETWEENや不等号）」や「前方一致検索」が高速になります。ノードの種類:Root Node (ルートノード): 木の入り口。Branch Node (ブランチノード): 中間管理職。次の階層への案内板を持ちます。
+`Leaf Node (リーフノード): `
+最下層。ここには「テーブル本体のどこにデータがあるか」を示す物理アドレス (TID / ctid) が格納されています。
 
-### なぜ Seq Scan は遅い？
-
-探索回数がデータ数 $N$ に比例するため（$O(N)$）。
-
-### B-tree の特徴
-
-- データを木構造で管理
-- 常にソート済み
-- 探索計算量は $O(\log N)$
-
-### 構造
-
-- Root（根）
-- Branch（枝）
-- Leaf（末端：データ位置）
-
----
-
-## 5. インデックスの作成と効果検証
-
-### 実験2：インデックス作成
-
+### 3.2 B-treeの構造解析(pageinspectによる可視化)
+インデックスの内部構造を解析するための専用ツールとデータセットを用意します。
+PostgreSQL に標準添付されているものの、デフォルトでは無効化されている `pageinspect` を有効にします。これがないと内部データは見られません。
 ```sql
-CREATE INDEX idx_name
-ON large_characters(name);
+CREATE EXTENSION IF NOT EXISTS pageinspect;
+```
+解析用テーブルの作成
+構造を理解しやすくするため、単純なIDと、ページ分割を起こしやすくするためのパディング（詰め物）データを含むテーブルを作成します。
+```sql
+DROP TABLE IF EXISTS btree_depth_study;
+
+CREATE TABLE btree_depth_study (
+    id SERIAL PRIMARY KEY,  -- 自動的にB-treeインデックスが作成される
+    payload TEXT            -- 1行のサイズを大きくするためのカラム
+);
+
+-- データの挿入
+-- 1行あたり約1KBのデータを10,000件挿入します。
+-- これにより、1ページ(通常8KB)に収まる行数が減り、B-treeの階層(高さ)が生まれやすくなります。
+INSERT INTO btree_depth_study (payload)
+SELECT rpad('DATA-', 1000, 'x') || i 
+FROM generate_series(1, 10000) AS s(i);
+
+-- 統計情報の更新と不要領域の回収
+VACUUM FULL btree_depth_study;
+ANALYZE btree_depth_study;
+
+-- データの確認
+SELECT id, length(payload) FROM btree_depth_study LIMIT 5;
 ```
 
-### 実験3：再検索
+ここからは実際に作成した btree_depth_study のインデックス (btree_depth_study_pkey) を解剖します。
+
+#### ステップ1: メタページの確認
+B-tree インデックスの第0ブロックは「メタページ」と呼ばれ、木の基本情報が書かれています。
+```sql
+-- メタ情報の取得
+SELECT * FROM bt_metap('btree_depth_study_pkey');
+```
+出力項目の読み方:
+- root: 現在のルートノードが存在するブロック番号。
+- level: 木の高さ。
+- - 0: ルート兼リーフ（データが極端に少ない）。
+- - 1: ルート → リーフ。
+- - 2: ルート → ブランチ → リーフ。
+メモ: ここで表示された root の番号を覚えておいてください（以降の例では root = 1 と仮定して進めますが、必ずご自身の環境の値を使用してください）。
+
+#### ステップ2: ルートノードの中身を見る
+ルートノード（例: Block 1）の中身を見てみましょう。
+```sql
+-- bt_page_items(インデックス名, ブロック番号)
+SELECT itemoffset, ctid, itemlen, left(data, 20) as data_head
+FROM bt_page_items('btree_depth_study_pkey', 1);
+```
+出力内容の解読:
+- itemoffset: ページ内のアイテム番号。
+- data: そのアイテムが担当する「最小の値（または最大の値）」などのキー情報。
+- ctid: ここが最重要です。
+- - ルートやブランチの場合、この ctid のブロック番号部分は「次の階層（子ノード）のブロック番号」を指しています。
+
+### 探索アルゴリズムの追跡 (手動 Index Scan)
+PostgreSQL エンジンになりきって、id = 5555 というデータを探し出す旅に出ましょう。
+このセクションは、実際にSQLを実行しながら読み進めてください。
+【Phase 1】 ルートノードの調査
+まず、ルートノード（仮に Block 1）を見ます。
+```sql
+-- ルートノードを見る
+SELECT itemoffset, ctid, data 
+FROM bt_page_items('btree_depth_study_pkey', 1);
+```
+考え方:
+表示された data の値を見て、5555 が含まれていそうな範囲を探します。
+例えば、以下のようなリストがあったとします（16進数表記の場合があるので注意が必要ですが、数字の場合はそのまま読めることが多いです）。
+- offset 1: data = 1 -> ctid = (2,1)  (値1以上はBlock 2へ)
+- offset 2: data = 3000 -> ctid = (5,1) (値3000以上はBlock 5へ)
+- offset 3: data = 6000 -> ctid = (9,1) (値6000以上はBlock 9へ)
+この場合、探している 5555 は 3000 より大きく 6000 より小さいので、offset 2 の情報 が正解ルートです。つまり、次は Block 5 に行けばよいことになります。
+
+#### 【Phase 2】 ブランチノード（またはリーフ）の調査
+先ほど特定した「次のブロック番号（例: 5）」の中身を見ます。
+```sql
+-- 次のノードを見る (番号はPhase 1で特定したものに変えてください)
+SELECT itemoffset, ctid, data 
+FROM bt_page_items('btree_depth_study_pkey', 5);
+```
+ここでも同様に data を見て、5555 が含まれる範囲を探します。
+もし level が 2 以上ある場合は、さらに次のブロックへジャンプします。
+最終的に「これ以上の子ノードがない（次のブロックに行くとデータの格納先を指している）」状態、つまり リーフノード に到達するまで繰り返します。
+
+#### 【Phase 3】 リーフノードでの特定
+リーフノードに到達したら、data がドンピシャで 5555 になっている行を探します。
 
 ```sql
-EXPLAIN ANALYZE
-SELECT * FROM large_characters
-WHERE name = 'Character-99999';
+-- リーフノード内を検索 (ブロック番号は適宜変更)
+SELECT itemoffset, ctid, data 
+FROM bt_page_items('btree_depth_study_pkey', 20) -- 仮のブロック番号
+WHERE data::text LIKE '%5555%'; -- データを探す(簡易的な方法)
 ```
+見つかった行の ctid（例: (345, 2)）が、テーブル本体にある実際のデータの住所です。
 
-### 変化点
-
-- Seq Scan → **Index Scan**
-- 実行時間：25ms → 0.04ms（約500倍高速化）
-
----
-
-## 6. インデックスの副作用（デメリット）
-
-### ① 書き込み性能低下
-
-INSERT / UPDATE / DELETE のたびに  
-B-treeも更新される。
-
-### ② ディスク容量増加
-
-インデックス自体も容量を消費する。
-
-### 設計指針
-
-- WHERE句やJOINでよく使うカラムに作成
-- カーディナリティが低い列は慎重に
-- むやみに増やさない
-
----
-
-## 7. 定着確認
-
-### Q1
-
+#### 【Phase 4】 ゴール（データ取得）
 ```sql
-SELECT * FROM large_characters WHERE id = 50000;
+-- 突き止めた住所(ctid)を使ってデータを引っこ抜く
+SELECT ctid, * FROM btree_depth_study 
+WHERE ctid = '(345, 2)'; -- Phase 3で見つけたctidを入れる
 ```
+これで id = 5555 のデータを、全表走査することなくピンポイントで取得できました。
 
-→ 主キーなので **Index Scan**
-
-### Q2
-
+### 3.4 探索コストとバッファヒット (EXPLAIN ANALYZE BUFFERS)
+手動で行ったプロセスを、PostgreSQL は一瞬で行います。その効率を数値で確認しましょう。
+#### 比較実験:インデックス検索 (Index Scan)
+```sql 
+EXPLAIN (ANALYZE, BUFFERS) 
+SELECT * FROM btree_depth_study WHERE id = 5555;
+```
+予想結果: Buffers: shared hit=3 (または4)
+意味: ルート(1) → ブランチ(1) → リーフ(1) → テーブルデータ(1) の合計 4ページ（32KB）だけ読み込んだ。
+#### 全表走査 (Seq Scan)
+無理やりインデックスを使わないようにして計測します。
 ```sql
-SELECT * FROM large_characters
-WHERE name LIKE 'Character-99%';
+-- 一時的にインデックススキャンを禁止
+SET enable_indexscan = off;
+SET enable_bitmapscan = off;
+
+EXPLAIN (ANALYZE, BUFFERS) 
+SELECT * FROM btree_depth_study WHERE id = 5555;
+
+-- 設定を戻す
+SET enable_indexscan = on;
+SET enable_bitmapscan = on;
 ```
+予想結果: Buffers: shared hit=XXXX (数千ページ)
+意味: テーブルの全ページ（数十MB〜数百MB）をメモリに読み込んだ。
 
-→ 前方一致なので B-tree が使われる可能性が高い
+この Buffers の差こそが、システム負荷の差そのものです。アクセス数が少ないということは、ディスクI/Oが減り、CPU負荷も下がり、他のユーザへの影響も小さくなることを意味します。
 
-※ `LIKE '%99%'` は通常 Seq Scan
-
----
-
-## 8. SQLドリル
-
-### 課題A：複合インデックス
-
+### インデックス設計のトレードオフ
+「速くなるなら全部のカラムにインデックスを作ればいい」というわけではありません。インデックスには明確なコストがあります。
+実験: 更新コストの検証
+インデックスがある状態とない状態で、データの挿入速度を比較してみましょう。
 ```sql
-EXPLAIN ANALYZE
-SELECT * FROM large_characters
-WHERE job = 'Wizard' AND power > 800;
+-- A. インデックスなしテーブル
+CREATE TABLE no_index_table (col1 INT, col2 TEXT);
 
-CREATE INDEX idx_job_power
-ON large_characters(job, power);
-
-EXPLAIN ANALYZE
-SELECT * FROM large_characters
-WHERE job = 'Wizard' AND power > 800;
+-- B. インデックスありテーブル (3つのインデックスを作成)
+CREATE TABLE heavy_index_table (col1 INT, col2 TEXT);
+CREATE INDEX idx_h1 ON heavy_index_table(col1);
+CREATE INDEX idx_h2 ON heavy_index_table(col2);
+CREATE INDEX idx_h3 ON heavy_index_table(col1, col2);
 ```
-
----
-
-### 課題B：インデックス削除
-
+計測用クエリ（\timing） を有効にして実行時間を計測すると分かりやすいです）：
 ```sql
-DROP INDEX idx_name;
+\timing on
 
-EXPLAIN ANALYZE
-SELECT * FROM large_characters
-WHERE name = 'Character-99999';
+-- Aへの挿入 (10万件)
+INSERT INTO no_index_table 
+SELECT i, 'test' FROM generate_series(1, 100000) AS s(i);
+
+-- Bへの挿入 (10万件)
+INSERT INTO heavy_index_table 
+SELECT i, 'test' FROM generate_series(1, 100000) AS s(i);
+
+\timing off
 ```
+解説:
+heavy_index_table への挿入は、no_index_table に比べて数倍〜十倍以上の時間がかかるはずです。
+これは、テーブルへのデータ追加に加えて、3つの B-tree 構造すべてに対して挿入・ソート・ページ分割の処理 が発生しているためです。
+設計の指針:
 
----
+- 参照 (SELECT) が多いテーブル: インデックスを積極的に活用する。
 
-## 9. まとめ
+- 更新 (INSERT/UPDATE) が激しいログテーブル: インデックスは最小限にする。
 
-- Seq Scan は $O(N)$
-- Index Scan（B-tree）は $O(\log N)$
-- 検索は高速化するが、書き込みコストが増える
-- 必要なカラムにのみ適切に設計することが重要
+- カーディナリティ（値の種類）: 「性別」や「削除フラグ」のような値の種類が少ないカラム単体にB-treeインデックスを作っても、検索範囲が十分に絞り込めず、効果が薄い（逆に遅くなる）ことがある。
+
+#### 定着確認
+`Q1. 木の高さとパフォーマンス`
+データ件数が 1万件から 100万件（100倍）に増えたとき、B-treeインデックスを使った検索のコスト（読み込むページ数）はおよそ何倍になるでしょうか？
+A. 100倍
+B. 変わらない
+C. 数倍（2〜3倍程度）
+
+`Q2. ページ分割 (Page Split)`
+インデックスが貼られたカラムに対して INSERT を行い、対象のリーフノードが満杯だった場合、DBMSはどのような処理を行いますか？簡潔に説明してください。
+
+`Q3. インデックスの選択`
+SELECT * FROM users WHERE status = 'active' というクエリがあります。status カラムは 'active' か 'inactive' の2値しか取りません。ユーザの99%が 'active' です。
+この場合、status カラムにインデックスを作成すべきですか？理由とともに答えてください。
+
+#### 解答例
+Q1. 解答: C (数倍程度)解説: B-tree の計算量は $O(\log N)$ です。底（ファンアウト数）が数百と大きいため、データが100倍になっても、木の高さ（深さ）は1段か2段増える程度で済みます。これがB-treeが大規模データに強い理由です。
+
+Q2. 解答解説: 新しいデータを格納するスペースを作るため、満杯になったページを2つに分割します（ページ分割）。データ半分を新しいページに移動し、親ノードに新しいページへのポインタを追加します。これが連鎖するとコストが高くなります。
+
+Q3. 解答: 作成すべきではない解説: データの99%がヒットする場合、インデックスを使ってちまちまアクセスするよりも、テーブル全体をシーケンシャルに読み込んだ方が高速です（ランダムアクセスのオーバーヘッドがないため）。PostgreSQLのプランナも、この場合はインデックスを使わない判断をする可能性が高いです。
+
+
+本コンテンツの作成時間：約10時間
