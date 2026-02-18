@@ -115,7 +115,7 @@ SELECT * FROM users WHERE email = 'user_500000@example.com';
 - 実行時間はどう変化したか？
 - 実行計画の cost はどう変わったか？
 
-### 2.3 1.4 Seq Scan vs Index Scan の比較
+### 2.3 Seq Scan vs Index Scan の比較
 | 項目     | Seq Scan | Index Scan |
 | ------ | -------- | ---------- |
 | 探索コスト  | O(N)     | O(log N)   |
