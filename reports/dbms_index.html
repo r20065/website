@@ -1,0 +1,53 @@
+---
+
+## ③ index.html
+
+```html
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Markdown Viewer</title>
+
+    <!-- marked.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- コードを黒背景にする（highlight.js） -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <style>
+        body {
+            max-width: 800px;
+            margin: 40px auto;
+            font-family: sans-serif;
+        }
+
+        pre {
+            padding: 1em;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="content">読み込み中...</div>
+
+    <script>
+        fetch("dbms_index.md")
+            .then(response => response.text())
+            .then(text => {
+                document.getElementById("content").innerHTML = marked.parse(text);
+                hljs.highlightAll();
+            })
+            .catch(err => {
+                document.getElementById("content").textContent = "読み込み失敗";
+                console.error(err);
+            });
+    </script>
+
+</body>
+
+</html>
