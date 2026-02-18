@@ -1,5 +1,4 @@
 # テーマ：インデックス設計 (INDEX, B-tree, 探索コスト)
----
 
 ## 1. はじめに
 
@@ -14,7 +13,6 @@
 - `EXPLAIN ANALYZE` を用いて実行計画とコストを確認できるようになる
 - インデックス作成による検索速度の向上を実験で確認する
 
----
 
 ## 2. 学習の準備（実験用データの作成）
 
@@ -49,7 +47,6 @@ SELECT * FROM large_characters LIMIT 5;
 SELECT count(*) FROM large_characters;
 ```
 
----
 
 ## 2. インデックス（INDEX）とは何か
 ### 2.1 なぜインデックスが必要なのか？
@@ -65,7 +62,7 @@ SELECT * FROM users WHERE email = 'test@example.com';
 インデックスがあればどうなるでしょうか？
 → 木構造（B-tree）を使い:O(log N)
 で探索できます。
----
+
 ### 2.1 インデックス無しの検索コスト
 Step 1: テーブル作成
 ```spl
