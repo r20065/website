@@ -668,3 +668,222 @@ ALTER TABLE "users" ADD COLUMN "is_active" boolean DEFAULT true NOT NULL;
 Drizzle Kit は「以前のデータベースの状態」を記憶しているため、今回はテーブルを丸ごと作り直す (CREATE TABLE) のではなく、**「既存の users テーブルに対して、足りない is_active カラムを追加 (ADD COLUMN) するだけ」という、必要最小限の差分SQL（ALTER文）**を正確に計算して生成してくれます。
 これが、マイグレーションツールを利用する強力なメリットの一つです。
 
+## 4. 基本的なデータ操作（CRUDとSQL生成メカニズム）
+
+データベースアプリケーションの基本機能は、**CRUD（クラッド）** と呼ばれる4つの操作に集約されます。
+* **C**reate（作成）: `INSERT`
+* **R**ead（読み取り）: `SELECT`
+* **U**pdate（更新）: `UPDATE`
+* **D**elete（削除）: `DELETE`
+
+本章では、これらの操作をTypeScriptとDrizzle ORMを用いて記述し、それが裏でどのようなPostgreSQLのコマンドに変換されているかを検証します。
+
+準備として、CRUD処理を試すためのファイル `src/crud.ts` を作成してください。
+
+---
+
+### 4.1 データの挿入（INSERT）とバルクインサート
+
+まずはデータの作成（Create）です。
+Drizzleでは、SQLの `INSERT INTO ... VALUES ...` という構文と全く同じメンタルモデルでコードを記述します。
+
+```typescript
+// src/crud.ts
+import { db } from './db';
+import { users } from './schema';
+import { eq, gt, like } from 'drizzle-orm'; // 条件式に使う演算子関数
+
+async function runCRUD() {
+  console.log('--- 1. INSERT (データの挿入) ---');
+
+  // A. 1件のデータを挿入する
+  await db.insert(users).values({
+    name: 'Alice',
+    email: 'alice@example.com',
+    age: 20,
+  });
+  console.log('Aliceのデータを挿入しました。');
+
+  // B. バルクインサート (複数件の同時挿入) と RETURNING
+  // .returning() をつけると、DB側で自動採番されたIDやデフォルト値をNode.js側に返却させることができます。
+  const insertedUsers = await db.insert(users).values([
+    { name: 'Bob', email: 'bob@example.com', age: 25 },
+    { name: 'Charlie', email: 'charlie@example.com', age: 30 },
+    { name: 'Dave', email: 'dave@example.com', age: 35 },
+  ]).returning();
+  
+  console.log('バルクインサート結果:', insertedUsers);
+}
+// 実行用の呼び出し
+// runCRUD();
+```
+【データベース工学の視点：なぜバルクインサートが重要なのか？】
+もし1000件のデータを挿入したい場合、for ループを回して「1件のINSERT」を1000回実行すると、アプリケーションとデータベースの間で通信（ネットワーク・ラウンドトリップ）が1000回発生し、システムが著しく遅延します。
+複数のデータを配列で一気に渡す「バルクインサート」を行えば、通信は1回で済み、PostgreSQL側も1つのトランザクション内で効率よくディスクに書き込めるため、パフォーマンスが劇的に向上します。
+
+### 4.2 データの検索（SELECT）、更新（UPDATE）、削除（DELETE）
+引き続き src/crud.ts の runCRUD 関数の中に、残りの R, U, D の処理を追記していきます。
+
+データの検索（Read / SELECT）
+Drizzleでは、WHERE 句の条件に = や > などの記号を直接書くのではなく、インポートした関数（eq, gt, like など）を使用します。
+```TypeScript
+console.log('\n--- 2. SELECT (データの検索) ---');
+  
+  // SELECT * FROM users WHERE age > 25 ORDER BY age DESC
+  const over25Users = await db.select()
+    .from(users)
+    .where(gt(users.age, 25)); // gt = Greater Than (より大きい)
+    
+  console.log('25歳より上のユーザー:', over25Users);
+```
+
+データの更新（Update / UPDATE）
+【警告】 SQLと同様に、WHERE 句をつけ忘れると「テーブル内の全データ」が更新されてしまうため、注意が必要です。
+```TypeScript
+console.log('\n--- 3. UPDATE (データの更新) ---');
+  
+  // UPDATE users SET age = 26 WHERE name = 'Bob' RETURNING *
+  const updatedUser = await db.update(users)
+    .set({ age: 26 }) // 変更したいカラムと値
+    .where(eq(users.name, 'Bob')) // eq = Equal (等しい)
+    .returning();
+    
+  console.log('更新されたユーザー:', updatedUser);
+```
+データの削除（Delete / DELETE）
+```TypeScript
+console.log('\n--- 4. DELETE (データの削除) ---');
+  
+  // DELETE FROM users WHERE name = 'Dave'
+  const deletedUser = await db.delete(users)
+    .where(eq(users.name, 'Dave'))
+    .returning();
+    
+  console.log('削除されたユーザー:', deletedUser);
+```
+最後に、ファイルの末尾で関数を呼び出すようにして、ターミナルから実行してみましょう。
+```Bash
+npx tsx src/crud.ts
+```
+## 4.3 Drizzleのロガーを有効化し、生SQLを観察する
+前章で db.ts を作成した際、意図的に logger: true という設定を入れました。
+先ほどのスクリプトを実行すると、コンソールには結果だけでなく、裏で発行された生のSQL（Raw SQL） が大量に出力されているはずです。これを一行ずつ解剖します。
+
+【ログ出力の例と解読】
+
+バルクインサートのログ
+```Plaintext
+Query: insert into "users" ("name", "email", "age", "created_at", "is_active") values ($1, $2, $3, default, default), ($4, $5, $6, default, default), ($7, $8, $9, default, default) returning "id", "name", "email", "age", "created_at", "is_active"
+Params: [ 'Bob', 'bob@example.com', 25, 'Charlie', 'charlie@example.com', 30, 'Dave', 'dave@example.com', 35 ]
+```
+解読: TypeScriptの配列渡しが、見事に values (...), (...), (...) というPostgreSQLのバルクインサート構文に変換されています。default というキーワードが使われ、現在時刻(created_at)などがDB側で自動設定されるように最適化されています。
+
+検索 (SELECT) のログ
+```Plaintext
+Query: select "id", "name", "email", "age", "created_at", "is_active" from "users" where "users"."age" > $1
+Params: [ 25 ]
+```
+解読: TypeScriptの gt(users.age, 25) が、SQLの where "users"."age" > $1 に正確にマッピングされています。
+ここで、すべてのクエリにおいて、実際の値（'Bob' や 25）がSQL文の中に直接埋め込まれていない ことに気づきましたでしょうか。これが次のテーマである「SQLインジェクション対策」の要です。
+
+## 4.4 SQLインジェクション対策（プリペアドステートメント）
+Webアプリケーション開発において最も恐ろしい脆弱性のひとつが SQLインジェクション です。
+
+もし、ORMを使わずに文字列結合でSQLを作っていた場合を想像してください。
+```TypeScript
+// 危険な生の文字列結合の例
+const userName = req.body.name; // ユーザーからの入力
+const query = `SELECT * FROM users WHERE name = '${userName}'`;
+```
+ここで、悪意のあるユーザーが userName に '; DROP TABLE users; -- という文字列を入力すると、SQLが途中で分断され、データベースのテーブルが跡形もなく消去されてしまいます。
+
+PostgreSQLの「プリペアドステートメント」による完全な防御
+Drizzle ORMのログで見られた $1, $2 という記号は、PostgreSQLの プリペアドステートメント (Prepared Statement) という仕組みを利用するためのプレースホルダーです。
+
+プリペアドステートメントの通信フローは以下のようになります。
+
+- 構文の送信: アプリケーションはまず「骨組みだけのSQL（SELECT * FROM users WHERE name = $1）」をPostgreSQLに送信します。
+
+- コンパイル: PostgreSQL側で、そのSQLの「構文解析」と「実行計画の作成」を事前に行います。この時点でSQLの「構造」は確定・ロックされます。
+
+- 値のバインド: 後から Params: [ '悪意のある文字列' ] を送信し、プレースホルダー $1 にはめ込みます。
+
+この仕組みにより、後から送られてきた値の中にどんなに危険なSQLのコマンドが含まれていようと、PostgreSQLはそれを「ただの文字列データ」として扱うため、構造が破壊されることは絶対にありません。SQLインジェクション攻撃を根本から無効化する、データベース工学上の最強の盾です。
+
+Drizzle ORMは、すべてのクエリにおいてデフォルトでこのプリペアドステートメントの仕組みを強制的に使用するため、開発者が意識しなくても自動的に最高レベルのセキュリティが担保されるのです。
+
+### 定着確認
+Q1. パフォーマンスチューニング
+100人のユーザーデータを登録したい場合、db.insert().values() をループ文の中で100回実行するのと、100人分のオブジェクトを入れた配列を1回の db.insert().values(配列) に渡すのとでは、後者の方が圧倒的に高速です。その理由を「ネットワーク」というキーワードを使って説明してください。
+
+Q2. RETURNING 句の役割
+INSERTやUPDATEの末尾に .returning() を付与することで得られるメリットは何でしょうか？（例：serial() で定義されたIDカラムに着目して答えてください）
+
+Q3. セキュリティ
+Drizzleが出力する Query: のログにおいて、値が入るべき場所に $1, $2 と記載されています。この記号の名称と、これを活用するPostgreSQLの仕組み（脆弱性対策の仕組み）の名前を答えてください。
+
+### 解答
+Q1. 解答例:
+ループ処理で100回INSERTを実行すると、アプリケーションとデータベースサーバー間で「リクエストを送り、レスポンスを待つ」というネットワークの通信（ラウンドトリップ）が100回発生し、その通信の待ち時間がチリツモとなって処理全体が遅くなります。配列を渡すバルクインサートなら通信が1回で済むため、圧倒的に高速になります。
+
+Q2. 解答例:
+PostgreSQL側で自動的に生成された値（serial によって自動採番された id や、defaultNow() によって自動記録された created_at の時刻など）を、再度SELECT文を発行することなく即座にアプリケーション側で取得できるというメリットがあります。
+
+Q3. 解答:
+
+記号の名称: プレースホルダー (Placeholder)
+
+仕組みの名前: プリペアドステートメント (Prepared Statement)
+
+### SQLドリル
+CRUD操作の応用問題です。src/drill_crud.ts を作成して実装してください。
+
+- 課題A：複数条件の検索 (AND条件)
+users テーブルから、「年齢(age)が 20以上」かつ「名前(name)が 'Alice'」のユーザーを検索するDrizzleのコードを書いてください。
+
+ヒント: 複数条件を組み合わせるには import { and, gte, eq } from 'drizzle-orm'; のように and や gte (Greater Than or Equal: 以上) 関数を使用します。
+
+書き方: .where(and(条件1, 条件2))
+
+- 課題B：部分一致検索 (LIKE) と削除
+users テーブルから、メールアドレスに example.com が含まれるユーザーを すべて削除 し、削除されたユーザーのデータを返却 (returning) する処理を書いてください。
+
+ヒント: SQLの LIKE 演算子に相当する like 関数を使用します。% を使ったワイルドカード指定が必要です。
+
+### 解答
+課題A の解答:
+```TypeScript
+import { db } from './db';
+import { users } from './schema';
+import { eq, gte, and } from 'drizzle-orm';
+
+async function drillA() {
+  const result = await db.select()
+    .from(users)
+    // and() の中に複数の条件式を並べることで、SQLの "AND" 演算子になります
+    .where(
+      and(
+        gte(users.age, 20),
+        eq(users.name, 'Alice')
+      )
+    );
+  console.log(result);
+}
+```
+課題B の解答:
+```TypeScript
+import { db } from './db';
+import { users } from './schema';
+import { like } from 'drizzle-orm';
+
+async function drillB() {
+  const deletedUsers = await db.delete(users)
+    // like関数と、文字列中に '%' ワイルドカードを含めることで部分一致になります
+    .where(like(users.email, '%example.com%'))
+    .returning();
+    
+  console.log('削除されたデータ:', deletedUsers);
+}
+```
+【解説】
+裏で生成されるSQLは DELETE FROM "users" WHERE "users"."email" LIKE $1 RETURNING ... となり、$1 のパラメータとして '%example.com%' が渡されます。Drizzleを使うことで、複雑な条件式もTypeScriptの関数型プログラミングのように美しく、かつ型安全に記述できることが実感できたと思います。
