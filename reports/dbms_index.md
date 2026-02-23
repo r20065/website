@@ -14,7 +14,7 @@
 - インデックス作成による検索速度の向上を実験で確認する
 
 
-## 2. 学習の準備（実験用データの作成）
+##  学習の準備（実験用データの作成）
 
 インデックスの効果を体感するため、10万件のレコードを持つテーブルを作成します。
 
@@ -51,7 +51,7 @@ SELECT count(*) FROM large_characters;
 ## 2. インデックス（INDEX）とは何か
 ### 2.1 なぜインデックスが必要なのか？
 データベースに大量のデータが格納されているとき、特定の条件でデータを検索する処理はどのように行われるでしょうか？
-```spl
+```sql
 SELECT * FROM users WHERE email = 'test@example.com';
 ```
 もし users テーブルに 100万件のデータがあり、email にインデックスが無ければ、PostgreSQL は 全行を順番に確認（Sequential Scan） します。
@@ -65,7 +65,7 @@ SELECT * FROM users WHERE email = 'test@example.com';
 
 ### 2.1 インデックス無しの検索コスト
 Step 1: テーブル作成
-```spl
+```sql
 CREATE TABLE users (
 id SERIAL PRIMARY KEY,
 name TEXT,
@@ -73,7 +73,7 @@ email TEXT
 );
 ```
 Step 2: 100万件データ投入
-```spl
+```sql
 INSERT INTO users (name, email)
 SELECT
     'user_' || i,
@@ -81,7 +81,7 @@ SELECT
 FROM generate_series(1, 1000000) AS i;
 ```
 Step 3: 実行計画確認
-```spl
+```sql
 EXPLAIN ANALYZE
 SELECT * FROM users WHERE email = 'user_500000@example.com';
 ```
@@ -99,11 +99,11 @@ Seq Scan on users
 これは テーブル全体をなめて検索している ことを意味します。
 ### 2.2 インデックスを作る
 インデックス作成
-```spl
+```sql
 CREATE INDEX idx_users_email ON users(email);
 ```
 再度実行計画を確認
-```spl
+```sql
 EXPLAIN ANALYZE
 SELECT * FROM users WHERE email = 'user_500000@example.com';
 ```
@@ -347,7 +347,7 @@ A. 100倍
 B. 変わらない
 C. 数倍（2〜3倍程度）
 
-`Q2. ページ分割 (Page Split)`
+`Q2. ページ分割 (Page`sqlit)`
 インデックスが貼られたカラムに対して INSERT を行い、対象のリーフノードが満杯だった場合、DBMSはどのような処理を行いますか？簡潔に説明してください。
 
 `Q3. インデックスの選択`
