@@ -361,6 +361,130 @@ Q2. 解答解説: 新しいデータを格納するスペースを作るため�
 
 Q3. 解答: 作成すべきではない解説: データの99%がヒットする場合、インデックスを使ってちまちまアクセスするよりも、テーブル全体をシーケンシャルに読み込んだ方が高速です（ランダムアクセスのオーバーヘッドがないため）。PostgreSQLのプランナも、この場合はインデックスを使わない判断をする可能性が高いです。
 
+## 4. 演習問題
+### 演習①：Seq Scan を発生させよ
+large_characters テーブルに対して、
+あえて Seq Scan を発生させるSQL を書け。
+
+条件：
+
+job = 'Warrior' で検索
+
+インデックスは作らない前提
+
+さらに、実行計画を確認するSQLも書け。
+
+### 演習②：Index Scan に切り替えよ
+large_characters に対して、
+次のクエリが Index Scan になるように
+適切なインデックスを作成せよ。
+
+### 演習③：複合インデックス設計
+以下のクエリを高速化せよ。
+```sql
+SELECT *
+FROM large_characters
+WHERE job = 'Wizard'
+AND power BETWEEN 700 AND 900;
+```
+適切な複合インデックスを作成せよ。
+実行計画を確認するSQLも書け。
+
+### 演習④：Index Only Scan を発生させよ
+btree_depth_study テーブルで
+Index Only Scan を発生させるSQLを書け。
+
+条件：
+id = 5555 を検索
+テーブル本体を読まない構成にせよ
+
+### 演習⑤：インデックスが不利になるケースを再現せよ
+問題
+
+status カラム（'active'/'inactive'）のみを持つ
+以下のテーブルを作成し、
+
+インデックスを作成
+実行計画を確認
+インデックスを削除
+再度実行計画を確認
+
+するSQLを書け。
+## 演習問題解答例
+### 演習①：Seq Scan を発生させよ
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT *
+FROM large_characters
+WHERE job = 'Warrior';
+```
+job は4種類しかないため
+プランナは Seq Scan を選択する可能性が高い。
+
+### 演習②：Index Scan に切り替えよ
+```sql
+CREATE INDEX idx_large_characters_name
+ON large_characters(name);
+
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT *
+FROM large_characters
+WHERE name = 'Character-50000';
+```
+name は高カーディナリティ → Index Scan になる。
+
+### 演習③：複合インデックス設計
+```sql
+CREATE INDEX idx_job_power
+ON large_characters(job, power);
+
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT *
+FROM large_characters
+WHERE job = 'Wizard'
+AND power BETWEEN 700 AND 900;
+```
+ポイント：左側から使われる,job → power の順
+
+### 演習④：Index Only Scan を発生させよ
+```sql
+VACUUM ANALYZE btree_depth_study;
+
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT id
+FROM btree_depth_study
+WHERE id = 5555;
+```
+ポイント：SELECT id のみ,visibility map が必要
+
+### 演習⑤：インデックスが不利になるケースを再現せよ
+```sql
+CREATE TABLE users_status (
+  id SERIAL PRIMARY KEY,
+  status TEXT
+);
+
+INSERT INTO users_status(status)
+SELECT CASE WHEN i % 100 = 0 THEN 'inactive'
+            ELSE 'active'
+       END
+FROM generate_series(1, 100000) AS s(i);
+
+CREATE INDEX idx_status ON users_status(status);
+
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT * FROM users_status
+WHERE status = 'active';
+
+DROP INDEX idx_status;
+
+EXPLAIN (ANALYYZE, BUFFERS)
+SELECT * FROM users_status
+WHERE status = 'active';
+```
+期待：
+インデックスありでも Seq Scan が選ばれる可能性,またはコストがほぼ変わらない
+
 ## まとめ
 データベースのパフォーマンスを決定づける「インデックス」について、理論と実践の両面から学びました。
 
@@ -377,6 +501,5 @@ Q3. 解答: 作成すべきではない解説: データの99%がヒットする
     * インデックス作成は「検索速度」と引き換えに、「書き込み速度（INSERT/UPDATEのオーバーヘッド）」と「ディスク容量」を消費します。
     * カーディナリティ（値の種類）が低いカラムや、更新頻度が極端に高いテーブルへのインデックス設計は慎重に行う必要があります。
 
-次回以降の講義や演習でも、クエリが遅いと感じたら必ず `EXPLAIN ANALYZE` を実行し、「データベースがどの経路（Plan）を選んだのか」を確認する癖をつけてください。
 
 本コンテンツの作成時間：約10時間
