@@ -887,3 +887,254 @@ async function drillB() {
 ```
 【解説】
 裏で生成されるSQLは DELETE FROM "users" WHERE "users"."email" LIKE $1 RETURNING ... となり、$1 のパラメータとして '%example.com%' が渡されます。Drizzleを使うことで、複雑な条件式もTypeScriptの関数型プログラミングのように美しく、かつ型安全に記述できることが実感できたと思います。
+
+## 5. リレーションと高度なクエリ（JOINとN+1問題）
+
+リレーショナルデータベース（RDB）では、データの重複を防ぐため（正規化）、データは複数のテーブルに分割されて保存されています。例えば「ユーザー」と「そのユーザーが書いた投稿」は別のテーブルに存在します。
+本章では、分割されたデータを結合して取得する手法と、ORM特有のパフォーマンス問題について深く学んでいきます。
+
+---
+
+### 5.1 複数テーブルの結合（Inner Join / Left Join）の記述方法
+
+まずは、SQLの基本である `JOIN` を使ったデータ取得です。
+Drizzleの「Core API（SQLライクな書き方）」では、SQLと全く同じメンタルモデルで結合処理を記述できます。
+
+`src/join.ts` を作成し、以下のコードを記述してください。
+
+```typescript
+// src/join.ts
+import { db } from './db';
+import { users, posts } from './schema';
+import { eq } from 'drizzle-orm';
+
+async function runJoin() {
+  console.log('--- 1. データの準備 ---');
+  // テスト用に投稿データを追加します (Alice: id=1, Bob: id=2 と仮定)
+  await db.insert(posts).values([
+    { title: 'Drizzle ORM入門', authorId: 1 },
+    { title: 'PostgreSQLのJOIN解説', authorId: 1 },
+    { title: 'TypeScriptの型推論', authorId: 2 },
+  ]);
+
+  console.log('\n--- 2. INNER JOIN (内部結合) ---');
+  // ユーザー名と、そのユーザーが書いた投稿のタイトルを同時に取得
+  const innerJoinResult = await db.select({
+    userName: users.name,
+    postTitle: posts.title,
+  })
+  .from(users)
+  // postsテーブルを結合。条件は users.id = posts.authorId
+  .innerJoin(posts, eq(users.id, posts.authorId));
+
+  console.log('INNER JOIN結果:', innerJoinResult);
+
+  console.log('\n--- 3. LEFT JOIN (左外部結合) ---');
+  // 投稿を1つも書いていないユーザー(例えばCharlieやDave)も含めて全て取得
+  const leftJoinResult = await db.select({
+    userName: users.name,
+    postTitle: posts.title,
+  })
+  .from(users)
+  .leftJoin(posts, eq(users.id, posts.authorId));
+
+  console.log('LEFT JOIN結果:', leftJoinResult);
+}
+
+// runJoin();
+```
+【データベース工学の視点：JOINの使い分け】
+
+INNER JOIN: 両方のテーブルに一致するデータがある場合のみ結果を返します。（投稿がないユーザーは結果から除外されます）
+
+LEFT JOIN: 左側（.from() で指定したテーブル）のデータをすべて返し、右側（結合するテーブル）に一致するデータがない場合は null として返します。
+
+出力されるログの Query: を確認すると、inner join "posts" on "users"."id" = "posts"."author_id" のように、極めてクリーンなSQLが生成されていることがわかります。
+
+# 5.2 Drizzleの「Relational Queries (query API)」の活用
+JOINを使えばデータは取得できますが、結果は「フラットな配列（行と列）」として返ってきます。
+しかし、TypeScriptなどのオブジェクト指向/関数型プログラミングの世界では、「ユーザー情報の中に、投稿の配列が入れ子（ネスト）になっている構造」 の方が扱いやすいことが多々あります。
+```JSON
+// 理想的なオブジェクトの形（ネスト構造）
+{
+  "id": 1,
+  "name": "Alice",
+  "posts": [
+    { "id": 101, "title": "Drizzle ORM入門" },
+    { "id": 102, "title": "PostgreSQLのJOIN解説" }
+  ]
+}
+```
+Drizzleには、このようなネストされたデータを簡単に取得するための Relational Queries (query API) が用意されています。
+これを使うには、まず schema.ts に「テーブル同士の関係性（リレーション）」を定義してあげる必要があります。
+
+【手順1】src/schema.ts の末尾に以下を追記します。
+```TypeScript
+// src/schema.ts に追記
+import { relations } from 'drizzle-orm';
+
+// ユーザーから見た関係性（1人のユーザーは「複数」の投稿を持つ = One-to-Many）
+export const usersRelations = relations(users, ({ many }) => ({
+  posts: many(posts),
+}));
+
+// 投稿から見た関係性（1つの投稿は「1人」の著者に属する = Many-to-One）
+export const postsRelations = relations(posts, ({ one }) => ({
+  author: one(users, {
+    fields: [posts.authorId],      // 投稿テーブル側の外部キー
+    references: [users.id],        // 参照先のユーザーテーブルの主キー
+  }),
+}));
+```
+【手順2】Relational Queries を実行する
+src/relation.ts を作成します。
+```TypeScript
+// src/relation.ts
+import { db } from './db';
+
+async function runRelationQuery() {
+  console.log('--- Relational Queries の実行 ---');
+  
+  // ユーザー情報と、それに紐づく投稿(posts)を一度に取得する
+  const usersWithPosts = await db.query.users.findMany({
+    with: {
+      posts: true, // postsリレーションを一緒に取得する
+    },
+  });
+
+  // depth: null を指定して、ネストされたオブジェクトの中身を最後まで表示
+  console.dir(usersWithPosts, { depth: null });
+}
+
+// runRelationQuery();
+```
+非常にシンプルで直感的なコードで、理想的なネスト構造のデータを取得できるようになりました。しかし、ORMの真の恐ろしさはこの「便利なAPI」の裏側に潜んでいます。
+
+## 5.3 データベース工学の宿敵「N+1問題」とは？
+従来のORM（Active Record系など）において、上記のような「ネストしたデータを取得する処理」を記述すると、裏側で以下のような悲劇的なSQLが発行されてしまうことがありました。
+
+まず、ユーザー一覧を取得する (1回のクエリ)
+SELECT * FROM users;  (仮に100人のユーザーが取得できたとする)
+
+次に、ORMが裏側で自動的にループを回し、各ユーザーの投稿を個別に取得する (N回のクエリ)
+```sql
+SELECT * FROM posts WHERE author_id = 1;
+SELECT * FROM posts WHERE author_id = 2;
+...
+SELECT * FROM posts WHERE author_id = 100;
+```
+ユーザーが100人いた場合、データベースに対して 1 + 100 = 101回 のSQLクエリが連続して発行されます。
+これを 「N+1（エヌプラスワン）問題」 と呼びます。
+
+4.のバルクインサートの解説でも触れましたが、アプリケーションサーバーとデータベースサーバー間の「通信（ネットワークの往復）」は非常にコストの高い処理です。101回の通信が直列で行われると、レスポンスタイムは絶望的に遅くなり、データベースの接続枠（コネクションプール）を食いつぶし、システム全体がダウンする原因となります。
+
+## 5.4【検証】DrizzleはN+1問題をどう解決しているか？（発行クエリの解剖）
+「Drizzleの便利な query API も、裏でN+1問題を発生させているのではないか？」
+疑り深いデータベースエンジニアとして、ロガーを使って検証してみましょう。
+
+先ほどの src/relation.ts を実行して、コンソールに出力された Query: のログを確認します。
+```Bash
+npx tsx src/relation.ts
+```
+【出力されるSQLのログ（概念）】
+101回のSQLは発行されません。驚くべきことに、たった1つの巨大で複雑なSQLが発行されているはずです。
+
+```sql
+-- Drizzleが裏で生成するSQLのイメージ（※PostgreSQLの場合）
+SELECT 
+  "users"."id", 
+  "users"."name", 
+  (
+    SELECT json_agg(json_build_object('id', "posts"."id", 'title', "posts"."title"))
+    FROM "posts"
+    WHERE "posts"."author_id" = "users"."id"
+  ) AS "posts"
+FROM "users";
+```
+
+【Drizzleの解決策：JSON集約関数へのコンパイル】
+Drizzle ORMは、N+1問題を**「構造的に（アーキテクチャレベルで）回避」しています。
+Node.js側でループを回してSQLを何度も投げるのではなく、PostgreSQLが持つ強力な JSON集約関数 (json_agg や json_build_object) を駆使し、「TypeScriptが欲しがっているネストしたJSON構造」をデータベースの内部（C言語で書かれた超高速なエンジン内）で組み立てさせてから、1回の通信でNode.jsに返却**しているのです。
+
+この「SQLコンパイラ」としての高度な最適化能力こそが、Drizzle ORMが「モダンで最速のORM」と呼ばれ、世界中の開発者から支持されている最大の理由です。
+
+### 定着確認
+Q1. JOINの特性
+「商品 (products)」テーブルと「レビュー (reviews)」テーブルがあります。まだレビューが1件も書かれていない新商品も含めて、全ての商品一覧をデータベースから取得したい場合、INNER JOIN と LEFT JOIN のどちらを使用するべきでしょうか？理由とともに答えてください。
+
+Q2. N+1問題の根本原因
+N+1問題が発生するとシステムのパフォーマンスが著しく低下します。その最大のボトルネック（遅延の原因）は、データベースの計算速度そのものではなく、何が大量に発生することでしょうか？「ネットワーク」という言葉を含めて説明してください。
+
+Q3. DrizzleによるN+1問題の解決手法
+Drizzleの Relational Queries (db.query...) は、複数のテーブルにまたがる階層的なデータを取得する際、N+1回クエリを発行するのではなく、1回のクエリで解決します。データベース側でどのような機能（関数）を利用してこれを実現していると説明しましたか？
+
+###　解答
+Q1. 解答例:
+LEFT JOIN (左外部結合) を使用するべきです。
+理由は、INNER JOIN を使用すると「両方のテーブルに存在する（＝すでにレビューが書かれている）商品」しか結果として返ってこず、レビューが0件の新商品が一覧から消えてしまうためです。
+
+Q2. 解答例:
+アプリケーション（Node.js）とデータベース（PostgreSQL）の間で、「SQLを送信して結果を受け取る」というネットワークの通信（ラウンドトリップ）がN+1回も大量に発生してしまうことが最大の原因です。通信の待ち時間が積み重なり、致命的な遅延を引き起こします。
+
+Q3. 解答例:
+PostgreSQL内部の JSON集約関数 (json_agg や json_build_object など) を利用しています。データベースエンジン側でJSONの入れ子構造を組み立ててからアプリケーションに返すことで、1回の通信で必要なデータを全て取得しています。
+
+### SQLドリル
+課題A：条件付きの結合検索 (Core API)
+users テーブルと posts テーブルを結合し、「投稿のタイトル (title) に "Drizzle" という文字が含まれている投稿」と、その「著者の名前 (name)」を一覧で取得する処理を書いてください。（SQLライクな記述方法を使用します）
+
+ヒント1: innerJoin を使います。
+
+ヒント2: .where(like(posts.title, '%Drizzle%')) をチェーンさせます。
+
+課題B：ネストされたデータの取得 (Query API)
+先ほどは「ユーザーに紐づく投稿」を取得しましたが、今度は逆に、「投稿 (posts) を全件取得し、それぞれの投稿オブジェクトの中に、著者の情報 (author) を入れ子にして含める」処理を Relational Queries で記述してください。
+
+ヒント: db.query.posts.findMany({ ... }) を使用し、with の中で author リレーションを指定します。
+
+### 解答
+課題A の解答:
+```TypeScript
+import { db } from './db';
+import { users, posts } from './schema';
+import { eq, like } from 'drizzle-orm';
+
+async function drillA() {
+  const result = await db.select({
+    postTitle: posts.title,
+    authorName: users.name,
+  })
+  .from(posts) // 基準をpostsにしてもusersにしても書けます
+  .innerJoin(users, eq(posts.authorId, users.id))
+  .where(like(posts.title, '%Drizzle%'));
+  
+  console.log('検索結果:', result);
+}
+```
+課題B の解答:
+```TypeScript
+import { db } from './db';
+
+async function drillB() {
+  const postsWithAuthor = await db.query.posts.findMany({
+    with: {
+      author: true, // postsRelationsで定義した 'author' リレーションを指定
+    },
+  });
+
+  console.dir(postsWithAuthor, { depth: null });
+  /* 出力イメージ:
+  [
+    {
+      id: 1,
+      title: 'Drizzle ORM入門',
+      authorId: 1,
+      author: { id: 1, name: 'Alice', email: 'alice@...', ... } // ネストされた著者情報
+    }, ...
+  ]
+  */
+}
+```
+【解説】
+Drizzleの強力な型推論により、with: { author: true } と打つだけで、TypeScriptは戻り値のオブジェクトの中に author というプロパティが存在し、その中身が User 型であることを完璧に理解します。そのため、postsWithAuthor[0].author.name のようなアクセスも安全に行うことができます。
+
