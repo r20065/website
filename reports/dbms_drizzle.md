@@ -1,8 +1,8 @@
 # Drizzle ORM とモダンなデータベース操作手法
 ## 1. はじめに（ORMの役割とDrizzle ORMの概要）
 
-### 本章の演習環境
-本講義では PostgreSQL 17 コンテナ を使用します。
+### 演習環境
+PostgreSQL 17 コンテナ を使用します。
 
 ## 1.1 ORM（Object-Relational Mapping）とは何か？
 
@@ -455,4 +455,216 @@ export const users = pgTable('users', {
 });
 ```
 解説: TypeScript上のプロパティ名をキャメルケース（departmentId）、DB上のカラム名をスネークケース（department_id）に分けることで、JavaScript/TypeScriptの命名規則を守りながらデータベースの命名規則にも準拠させることができます。
+
+## 3. データベースマイグレーション（Drizzle Kit）
+
+本章では、前章でTypeScript上に定義したテーブルの「設計図（スキーマ）」を、実際の PostgreSQL 17 データベースに反映させるためのプロセスを学びます。単にテーブルを作るだけでなく、将来の「変更」を安全に管理するための**マイグレーション**という技術を習得します。
+
+### 3.1 マイグレーションとは？（スキーマのバージョン管理の重要性）
+
+プログラムのソースコードは Git（GitHubなど）を使ってバージョン管理を行うのが常識です。いつ、誰が、どの行を変更したのかを記録し、バグがあれば過去のバージョンに「ロールバック（巻き戻し）」することができます。
+
+**では、データベースのテーブル構造（スキーマ）はどうでしょうか？**
+
+開発が進むにつれて、「新しい機能のために `users` テーブルに `is_active` というカラムを追加したい」「`age` カラムのデータ型を変更したい」といった要求が必ず発生します。
+このとき、開発者が手動でデータベースにログインして `ALTER TABLE` を実行してしまうと、以下のような致命的な問題が起こります。
+
+1. **環境の不一致**: 開発環境のDBにはカラムが追加されたが、本番環境のDBには追加し忘れた結果、システムがクラッシュする。
+2. **チーム開発の崩壊**: Aさんがテーブル構造を変更したが、Bさんの手元のDBには反映されていないため、Bさんのプログラムが動かなくなる。
+3. **履歴が追えない**: なぜそのカラムが追加されたのか、誰がいつ変更したのかが全く分からない（レビューができない）。
+
+**マイグレーション（Migration）** とは、データベースのスキーマ変更を「SQLファイルの履歴（バージョン）」としてコード化し、順番に適用していく仕組みのことです。
+Drizzle ORM では、**Drizzle Kit** という強力なCLIツールを用いて、TypeScriptのスキーマ定義からマイグレーション用SQLを自動生成・管理します。
+
+---
+
+### 3.2 Drizzle Kit を用いた DDL の自動生成
+
+それでは実際に Drizzle Kit を使って、前章で作成した `schema.ts` から PostgreSQL用のDDL（Data Definition Language: `CREATE TABLE` などの構文）を自動生成してみましょう。
+
+#### Drizzle Kit の設定ファイルの作成
+プロジェクトのルートディレクトリ（`package.json` がある階層）に、`drizzle.config.ts` という設定ファイルを作成します。
+
+```typescript
+// drizzle.config.ts
+import { defineConfig } from 'drizzle-kit';
+import 'dotenv/config'; // .envから環境変数を読み込む
+
+export default defineConfig({
+  // 1. スキーマ定義ファイルがどこにあるかを指定
+  schema: './src/schema.ts',
+  
+  // 2. 生成されるマイグレーションSQLファイルの出力先ディレクトリ
+  out: './drizzle',
+  
+  // 3. 対象のデータベースエンジン (PostgreSQL)
+  dialect: 'postgresql',
+  
+  // 4. データベースへの接続情報
+  dbCredentials: {
+    url: process.env.DATABASE_URL!,
+  },
+  
+  // 5. ログを出力して進捗を見やすくする
+  verbose: true,
+  strict: true,
+});
+```
+#### マイグレーションSQLの生成 (Generate)
+```Bash
+npx drizzle-kit generate
+```
+【裏側で起きていること（データベース工学の視点）】
+このコマンドを実行すると、Drizzle Kit は以下の高度な処理を行います。
+
+src/schema.ts の内容を読み取り、現在の「理想のデータベース構造」を解析する。
+
+過去に出力したスナップショット（以前のテーブル構造の記録）と比較し、「何が変更されたか（差分）」を計算する。今回は初回なので「全てのテーブルを新規作成する」と判断します。
+
+その差分を埋めるための PostgreSQL 17 用の正しい SQL文（CREATE TABLE や ALTER TABLE）を組み立て、./drizzle フォルダに新しい .sql ファイルとして保存する。
+
+### 3.3 マイグレーションの実行と適用（push と migrate の違い）
+SQLファイルが生成されましたが、この時点ではまだ PostgreSQL のコンテナの中身は空っぽのままです。生成されたSQLをデータベースに対して**実行（適用）**する必要があります。
+
+Drizzle には、スキーマを適用するための2つのアプローチがあります。この違いを理解することは、システム運用において極めて重要です。
+
+**アプローチ A: drizzle-kit push (開発環境向け)**
+push コマンドは、現在の schema.ts と 実際のデータベースの状態を直接見比べ、強制的にデータベースをスキーマ定義と同じ状態にする コマンドです。
+
+メリット: マイグレーションファイルを意識せず、TypeScriptを書き換えて push するだけで即座にDBが更新されるため、プロトタイピング（試作）が爆速になります。
+
+デメリット: カラムの名前を変更した際などに、Drizzleが「古いカラムを削除(DROP)して新しいカラムを追加する」と誤認し、データが消失（DROP TABLE等）する危険性があります。
+
+**アプローチ B: migrate (本番環境・チーム開発向け)**
+migrate は、generate コマンドで作られた .sql ファイル（履歴）を、古いバージョンから順番に実行していく正規の手法です。
+データベース内には __drizzle_migrations という履歴管理用の特殊なテーブルが自動作成され、「どのSQLファイルまで実行済みか」が記録されます。
+
+メリット: 意図しないデータ破壊が起きません。GitでSQLファイルをレビュー（確認）してから本番環境に適用できます。
+
+デメリット: スキーマを変更するたびに generate してファイルを残す手間がかかります。
+
+#### データベースへの適用
+今回は学習環境での演習であるため、手軽な push コマンドを使用して PostgreSQL コンテナにテーブルを作成します。
+```Bash
+npx drizzle-kit push
+```
+成功すると、CHANGES APPLIED という緑色のメッセージが表示され、PostgreSQL 上に users テーブルや posts テーブルが実際に構築されます。
+
+### 3.4 生成されたSQLファイルの中身を解読する
+ORMを使う上で、「ORMが勝手に何をやっているか分からない」というブラックボックス状態は絶対に避けなければなりません。
+generate コマンドによって ./drizzle フォルダ内に生成された 0000_xxxxx.sql のようなファイルを開き、**データベース工学の視点でDrizzleが作ったSQLを解読（リバースエンジニアリング）**してみましょう。
+
+【生成されたSQLの例】
+```sql
+CREATE TABLE IF NOT EXISTS "posts" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"title" varchar(255) NOT NULL,
+	"author_id" integer NOT NULL
+);
+--> statement-breakpoint
+
+CREATE TABLE IF NOT EXISTS "users" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"email" varchar(255) NOT NULL,
+	"age" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "users_email_unique" UNIQUE("email")
+);
+--> statement-breakpoint
+
+DO $$ BEGIN
+ ALTER TABLE "posts" ADD CONSTRAINT "posts_author_id_users_id_fk" FOREIGN KEY ("author_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+```
+【解読・検証ポイント】
+
+IF NOT EXISTS の利用:
+テーブルを作る際、CREATE TABLE IF NOT EXISTS と記述されています。これは「もし既にテーブルが存在していれば何もしない（エラーで落ちない）」という**冪等性（べきとうせい：何度実行しても同じ結果になる性質）**を担保するための工夫です。
+
+SERIAL 型の採用:
+IDに指定した serial() は、PostgreSQL特有の SERIAL 型に変換されています。これは内部的にシーケンス（連番発行機）を作成し、自動的にインクリメントする効率的な手法です。
+
+制約の独立化 (CONSTRAINT):
+email カラムのユニーク制約が、カラムの横に UNIQUE と書かれるだけでなく、CONSTRAINT "users_email_unique" UNIQUE("email") と名前付きで明示的に定義されています。名前をつけることで、後からこの制約だけを狙って削除（DROP）しやすくなります。
+
+外部キー追加の高度なテクニック (DO $$ BEGIN ... END $$;):
+posts テーブルの外部キー（FOREIGN KEY）を追加する部分に注目してください。無名ブロック（DO $$ ...）と例外処理（EXCEPTION WHEN duplicate_object THEN null）が使われています。
+これは、「もし既に同じ名前の外部キーが存在していた場合は、エラーで処理全体を止めるのではなく、静かにスキップする」という安全性の高いPostgreSQL独自のスクリプト構文です。
+
+Drizzle ORMは単に動くSQLを吐き出しているのではなく、**「DBA（データベース管理者）が手書きするレベルの、安全で高品質なPostgreSQL構文」**を生成していることがお分かりいただけたでしょうか。
+
+### 定着確認
+Q1. push と migrate の用途の違い
+スキーマをデータベースに適用する際、開発初期のプロトタイピング環境では drizzle-kit push を使うことが便利ですが、本番環境（Production）のデータベースに対して push を実行することは強く非推奨とされています。その決定的な理由を、「データ」という言葉を使って説明してください。
+
+Q2. 冪等性（べきとうせい）
+Drizzleが生成したSQLファイルには CREATE TABLE IF NOT EXISTS のように「既に存在していればスキップする」仕組みが多用されています。このように「1回実行しても100回実行しても、システムが同じ状態に収束する」性質を情報工学の用語で何と呼びますか？（※テキスト中に答えがあります）
+
+Q3. マイグレーションの利点
+データベースのスキーマ変更を、DBに直接SQLを打ち込んで変更するのではなく、「マイグレーションファイル（.sql）」としてGit等のバージョン管理システムに残していく運用をとることで、チーム開発においてどのようなメリットがあるでしょうか？1つ以上挙げてください。
+
+### 解答
+Q1. 解答例:
+push コマンドは強制的にTypeScriptの定義とDBを同期させるため、カラム名を変更した際などに「古いカラムをDROP（削除）して新しいカラムを作成する」という挙動をとる場合があります。本番環境でこれを実行すると、これまでに蓄積された実際のユーザーデータが意図せず消失（削除）してしまう危険性があるためです。
+
+Q2. 解答:
+冪等性（べきとうせい / Idempotence）
+
+Q3. 解答例:
+
+「誰が・いつ・なぜそのカラムを追加したのか」という変更履歴がコミットログとして残るため、後から追跡できる。
+
+Gitなどを通じてチームメンバー間でスキーマ変更のファイルが共有されるため、全員の開発環境のデータベース構造を常に統一（同期）させることができる。
+
+変更前にGitHubのPull Request等で、誤ったテーブル変更が行われないか事前にレビューができる。
+
+### SQLドリル
+課題：既存テーブルへのカラム追加と差分SQLの確認
+仕様変更が発生し、users テーブルに「退会済みかどうか」を判定するための真偽値（boolean）カラム is_active を追加することになりました。
+
+【手順】
+
+src/schema.ts を開き、users テーブルの定義内に以下のカラムを追加してください。
+
+カラム名: isActive (DB上は is_active)
+
+データ型: boolean (真偽値)
+
+デフォルト値: true (デフォルトで有効状態にする)
+
+制約: NOT NULL制約をつける
+
+ヒント: import { boolean } from 'drizzle-orm/pg-core'; が必要です。
+
+ターミナルで npx drizzle-kit generate を実行し、新しいマイグレーションファイルを生成してください。
+
+./drizzle フォルダに新しく作成された SQLファイル（0001_xxxxx.sql など）を開き、どのようなSQL文が生成されたかを確認してください。
+
+### 解答
+【手順1の解答 】
+```TypeScript
+import { pgTable, serial, varchar, integer, timestamp, boolean } from 'drizzle-orm/pg-core';
+
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  age: integer('age'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  
+  // ★追加するコード
+  isActive: boolean('is_active').default(true).notNull(),
+});
+```
+【手順3の解答 (生成されるSQLの確認)】
+```sql
+ALTER TABLE "users" ADD COLUMN "is_active" boolean DEFAULT true NOT NULL;
+```
+
+【解説】
+Drizzle Kit は「以前のデータベースの状態」を記憶しているため、今回はテーブルを丸ごと作り直す (CREATE TABLE) のではなく、**「既存の users テーブルに対して、足りない is_active カラムを追加 (ADD COLUMN) するだけ」という、必要最小限の差分SQL（ALTER文）**を正確に計算して生成してくれます。
+これが、マイグレーションツールを利用する強力なメリットの一つです。
 
