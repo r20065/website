@@ -378,7 +378,12 @@ job = 'Warrior' で検索
 large_characters に対して、
 次のクエリが Index Scan になるように
 適切なインデックスを作成せよ。
-
+```sql
+SELECT *
+FROM large_characters
+WHERE name = 'Character-50000';
+```
+実行計画確認SQLも書け。
 ### 演習③：複合インデックス設計
 以下のクエリを高速化せよ。
 ```sql
@@ -399,8 +404,6 @@ id = 5555 を検索
 テーブル本体を読まない構成にせよ
 
 ### 演習⑤：インデックスが不利になるケースを再現せよ
-問題
-
 status カラム（'active'/'inactive'）のみを持つ
 以下のテーブルを作成し、
 
@@ -410,6 +413,8 @@ status カラム（'active'/'inactive'）のみを持つ
 再度実行計画を確認
 
 するSQLを書け。
+
+
 ## 演習問題解答例
 ### 演習①：Seq Scan を発生させよ
 ```sql
